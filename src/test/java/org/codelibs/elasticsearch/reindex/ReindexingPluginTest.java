@@ -1,12 +1,12 @@
 package org.codelibs.elasticsearch.reindex;
 
-import static org.codelibs.elasticsearch.runner.ElasticsearchClusterRunner.newConfigs;
-
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.Map;
-
 import junit.framework.TestCase;
-
 import org.codelibs.elasticsearch.runner.ElasticsearchClusterRunner;
+import static org.codelibs.elasticsearch.runner.ElasticsearchClusterRunner.newConfigs;
 import org.codelibs.elasticsearch.runner.net.Curl;
 import org.codelibs.elasticsearch.runner.net.CurlResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -48,10 +48,39 @@ public class ReindexingPluginTest extends TestCase {
 
         final String index = "dataset";
         final String type = "item";
+        
+        final String logstashIndexPrefix = "logstash-";
+        final String logstashType = "dummyLogstashType";
 
         // create an index
         runner.createIndex(index, null);
 
+        // create 10 indexes, logstash styled.
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.DAY_OF_MONTH, -10);
+        SimpleDateFormat sdf = new SimpleDateFormat("YYYY.MM.dd");
+
+        for (int i = 0; i < 10; i++) {
+            Date d = cal.getTime();
+            String logstashIndex = logstashIndexPrefix + sdf.format(d);
+            runner.createIndex(logstashIndex, null);
+
+            // create 500 documents
+            for (int j = 1; j <= 500; j++) {
+                final IndexResponse indexResponse1 = runner.insert(logstashIndex, logstashType,
+                        String.valueOf(j), "{\"msg\":\"test " + i + "\", \"id\":\""
+                        + i + "\"}");
+                assertTrue(indexResponse1.isCreated());
+            }
+
+            cal.add(Calendar.DAY_OF_MONTH, 1);
+
+            if (!runner.indexExists(logstashIndex)) {
+                fail();
+            }
+        }
+        
+        
         if (!runner.indexExists(index)) {
             fail();
         }
@@ -94,6 +123,11 @@ public class ReindexingPluginTest extends TestCase {
         runner.ensureGreen();
         test_index_to_remote_newIndex(node, index, type);
     }
+    
+    private void test_logsatsh(Node node){
+        
+    }
+    
 
     private void test_index_type_to_newIndex_newType(Node node, String index,
             String type) throws Exception {
